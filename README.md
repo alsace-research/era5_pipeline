@@ -66,6 +66,8 @@
 Here you'll find an common Earth Observation (EO) industry workflow to pull Satellite derived atmospheric data from netCDF4 format to Uber H3 format in parquet.  
 
 The data comes from [Google Analysis-Ready & Cloud Optimized (ARCO) ERA5](https://console.cloud.google.com/storage/browser/gcp-public-data-arco-era5/raw/date-variable-single_level/2022/01/01/total_precipitation;tab=objects?pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22))&prefix=&forceOnObjectsSortingFiltering=false)
+
+
 representing hourly precipitation data for the globe for ERA5 from the the *European Centre for Medium-Range Weather Forecasts (ECMWF)*.
 
 Here's why:
@@ -100,16 +102,52 @@ _Below is an example of how you can instruct your audience on installing and set
 
 4. Change git remote url to avoid accidental pushes to base project
    ```sh
-   git remote set-url origin github_username/repo_name
+   git remote set-url origin alsace-research/era5_pipeline
    git remote -v # confirm the changes
    ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
+<!-- USAGE EXAMPLES -->
+## The Data
+
+1. The `total_precipitation` data comes in NetCDF4 format, which is not an optimized or compressed file format.  
+2. The data comes at a global scale and a resolution of 80km x 80km pixel grids
+3. The H3 resolution is of user choice, but I chose to use reolution 8, which 
+
+
+<!-- USAGE EXAMPLES -->
+## The Tooling
+
+There are a few approaches to processing this type of data.  I started with the building the process locally on an M1 Mac.  For this approach, I chose to use `python`, `numpy`, `Dask`, `Xarray`, `gcsfs`, and `H3`.  
+
+Some other approaches I considered, due to familiarity:
+1. Databricks `Spark`: `spark-xarray`, `Mosaic` (native Databricks library for large-scale H3 processing - I've met the developers, the tools have been tested). [Link to Databricks Mosaic.](https://github.com/databrickslabs/mosaic)
+2. Python: `Dask Distributed`, `Xarray`
+3. Alternatives: `Coiled` (managed Dask clusters) via Cloud
+
+
+**Local**
+
+The Dask and Xarray stack has many similarities between a local cluster, distributed cluster, or a HPC cluster.  The difference lies in the configuration of the workflow.
+
+**Distributed in Cloud**
+The process will run Python code which can be distributed and scaled across many memory-optimized machines in the cloud.
+
+The code will run the same in the cloud, just ensure the configuration is set for the cloud.
+
+**HPC** High Perforamance Computing centers are often used for EO data and must be used appropriately.  The configuration shows an attempt an building an scheduler for this approach.
+
+<!-- USAGE EXAMPLES -->
+## Configuration
+
+I've provided an configuration file for this workflow.  I was unsure what the expectation was for the assessment, so I attempted to provide an cofiguration that gives the user the ability to select their own compute setting: Local, Cloud, or HPC.
 
 <!-- USAGE EXAMPLES -->
 ## Workflow
+
+One can access the Dask dashboard at it's fixed location here: `http://127.0.0.1:8787/status`
 
 1. Read in netCDF4 files from Google Cloud Storage
 2. Load files in parallel using Dask

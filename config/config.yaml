@@ -1,0 +1,18 @@
+data:
+  storage_path: "gs://gcp-public-data-arco-era5/raw"
+  output_path: "./data/processed/"
+  threshold: 0.0001  # Threshold for filtering precipitation values
+  resolution: 8       # H3 resolution
+
+dask:
+  scheduler: "distributed"
+  num_workers: 4
+  memory_limit: "4GB"  # Memory limit for Dask workers
+  local_directory: "/tmp/dask-worker-space"
+  dashboard_port: 8787 # Fixed port for Dash dashboard
+
+processing:
+  start_year: 2022
+  end_year: 2022
+  start_date: "2022-01-01"
+  end_date: "2022-01-01"  # Default set to one day for testing
