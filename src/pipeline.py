@@ -1,17 +1,10 @@
 import os
-import gcsfs
-import pandas as pd
-from dask.distributed import Client
-from src.h3_processing import load_and_process_file, convert_timestamps_to_pandas
-
-
-
 import logging
 import time
 import pandas as pd
 import gcsfs
 from dask.distributed import Client
-from src.h3_processing import load_and_process_file, convert_timestamps_to_pandas
+from src.h3_processing import load_and_process_file, convert_timestamps_to_pandas, save_to_parquet
 from src.utils import ensure_directory_exists, list_files_for_date_range
 
 # Set up logging configuration
@@ -21,14 +14,6 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',  # Log format
     datefmt='%Y-%m-%d %H:%M:%S'  # Date format
 )
-
-import logging
-import time
-import pandas as pd
-import gcsfs
-from dask.distributed import Client
-from src.h3_processing import load_and_process_file, convert_timestamps_to_pandas
-from src.utils import ensure_directory_exists, list_files_for_date_range
 
 def run_pipeline(config):
     # Start the pipeline and log it
@@ -81,9 +66,8 @@ def run_pipeline(config):
     logging.info(f"Saving the combined DataFrame to Parquet.")
     parquet_start_time = time.time()
 
-    # Save to Parquet
-    combined_df.to_parquet(f"{config['data']['output_path']}/combined_output.parquet", 
-                           compression='snappy')
+    # Use the save_to_parquet function to save the DataFrame, optimized for querying
+    save_to_parquet(combined_df, f"{config['data']['output_path']}/combined_output.parquet")
     
     logging.info(f"Data saved to Parquet. Time taken: {time.time() - parquet_start_time:.2f} seconds")
 

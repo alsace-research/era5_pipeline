@@ -90,6 +90,6 @@ def save_to_parquet(df, output_path):
     # Sort the data for better read performance
     df.sort_values(['h3_index', 'timestamp'], inplace=True)
 
-    # Save the DataFrame to a Parquet file with compression and partitioning by timestamp
-    df.to_parquet(output_path, partition_cols=['timestamp'], compression='snappy')
+    # Save the DataFrame to a single Parquet file with compression
+    df.to_parquet(output_path, compression='snappy')
     print(f"Saved DataFrame to {output_path}")
