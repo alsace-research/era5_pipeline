@@ -1,0 +1,14 @@
+name: xarray
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - coiled
+  - dask
+  - xarray
+  - flox
+  - geopandas
+  - geoviews
+  - matplotlib
+  - gcsfs
+  - h3-py
