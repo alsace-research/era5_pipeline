@@ -50,26 +50,74 @@ def convert_timestamps_to_pandas(df):
 
 
 
+# def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8):
+#     """Download and process the precipitation data for a specific file from GCS."""
+#     try:
+#         with tempfile.NamedTemporaryFile(delete=True) as tmp_file:
+#             print(f"Downloading file from: {file_path}")
+#             fs.get(file_path, tmp_file.name)
+#             ds = nc.Dataset(tmp_file.name)
+
+#             # Get latitude, longitude, and time data
+#             lat = ds.variables['latitude'][:]
+#             lon = ds.variables['longitude'][:]
+#             time_var = ds.variables['time']
+#             time_units = time_var.units
+#             time_data = nc.num2date(time_var[:], units=time_units)
+
+#             # Process each time slice using futures
+#             futures = []
+#             for t_idx, timestamp in enumerate(time_data):
+#                 precipitation_data = ds.variables['tp'][t_idx, :, :]
+#                 future = client.submit(process_time_slice_futures, lat, lon, precipitation_data, timestamp, resolution=resolution, threshold=threshold)
+#                 futures.append(future)
+
+#             # Gather results
+#             results = client.gather(futures)
+#             final_df = pd.concat(results)
+#             return final_df
+
+#     except Exception as e:
+#         print(f"Error processing file {file_path}: {e}")
+#         return pd.DataFrame()
+
+import xarray as xr
+import gcsfs
+import pandas as pd
+from dask.distributed import Client
+import tempfile
+
 def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8):
-    """Download and process the precipitation data for a specific file from GCS."""
+    """Download and process the precipitation data for a specific file from GCS with chunking."""
     try:
         with tempfile.NamedTemporaryFile(delete=True) as tmp_file:
             print(f"Downloading file from: {file_path}")
             fs.get(file_path, tmp_file.name)
-            ds = nc.Dataset(tmp_file.name)
 
-            # Get latitude, longitude, and time data
-            lat = ds.variables['latitude'][:]
-            lon = ds.variables['longitude'][:]
-            time_var = ds.variables['time']
-            time_units = time_var.units
-            time_data = nc.num2date(time_var[:], units=time_units)
+            # Open the file with Xarray and apply chunking
+            ds = xr.open_dataset(tmp_file.name, chunks={'time': 10, 'latitude': 700, 'longitude': 1700})
 
-            # Process each time slice using futures
+            # Extract latitude, longitude, and time data
+            lat = ds['latitude'].values
+            lon = ds['longitude'].values
+            time_data = ds['time'].values
+
+            # Prepare Dask tasks for each time slice
             futures = []
             for t_idx, timestamp in enumerate(time_data):
-                precipitation_data = ds.variables['tp'][t_idx, :, :]
-                future = client.submit(process_time_slice_futures, lat, lon, precipitation_data, timestamp, resolution=resolution, threshold=threshold)
+                # Load the precipitation data chunk for this time slice
+                precipitation_data = ds['tp'].isel(time=t_idx).load()
+
+                # Submit task for processing the time slice
+                future = client.submit(
+                    process_time_slice_futures,
+                    lat,
+                    lon,
+                    precipitation_data.values,  # Convert to NumPy array for processing
+                    timestamp,
+                    resolution=resolution,
+                    threshold=threshold
+                )
                 futures.append(future)
 
             # Gather results
@@ -80,6 +128,7 @@ def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8)
     except Exception as e:
         print(f"Error processing file {file_path}: {e}")
         return pd.DataFrame()
+
 
 def save_to_parquet(df, output_path):
     """Save the DataFrame to Parquet, optimized for querying by h3_index and timestamp."""

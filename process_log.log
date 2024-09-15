@@ -64,3 +64,21 @@
 2024-09-14 19:47:40 - INFO - Saving the combined DataFrame to Parquet.
 2024-09-14 19:47:55 - INFO - Data saved to Parquet. Time taken: 15.64 seconds
 2024-09-14 19:47:55 - INFO - Pipeline completed successfully in 56.28 seconds.
+2024-09-14 22:01:44 - INFO - Pipeline started.
+2024-09-14 22:01:44 - WARNING - No project ID could be determined. Consider running `gcloud config set project` or setting the GOOGLE_CLOUD_PROJECT environment variable
+2024-09-14 22:01:45 - INFO - Dask dashboard available at http://127.0.0.1:60608/status
+2024-09-14 22:01:45 - INFO - Listing files from 2022-01-01 00:00:00 to 2022-01-01 00:00:00.
+2024-09-14 22:01:45 - INFO - Processing file: gs://gcp-public-data-arco-era5/raw/date-variable-single_level/2022/01/01/total_precipitation/surface.nc
+2024-09-14 22:01:54 - INFO - File processed: gs://gcp-public-data-arco-era5/raw/date-variable-single_level/2022/01/01/total_precipitation/surface.nc with shape: (3636140, 3). Time taken: 9.39 seconds
+2024-09-14 22:02:08 - INFO - Saving the combined DataFrame to Parquet.
+2024-09-14 22:02:22 - INFO - Data saved to Parquet. Time taken: 14.84 seconds
+2024-09-14 22:02:22 - INFO - Pipeline completed successfully in 38.59 seconds.
+2024-09-14 22:19:18 - INFO - Pipeline started.
+2024-09-14 22:19:18 - WARNING - No project ID could be determined. Consider running `gcloud config set project` or setting the GOOGLE_CLOUD_PROJECT environment variable
+2024-09-14 22:19:19 - INFO - Dask dashboard available at http://127.0.0.1:60697/status
+2024-09-14 22:19:19 - INFO - Listing files from 2022-01-01 00:00:00 to 2022-01-01 00:00:00.
+2024-09-14 22:19:19 - INFO - Processing file: gs://gcp-public-data-arco-era5/raw/date-variable-single_level/2022/01/01/total_precipitation/surface.nc
+2024-09-14 22:19:25 - INFO - File processed: gs://gcp-public-data-arco-era5/raw/date-variable-single_level/2022/01/01/total_precipitation/surface.nc with shape: (3636140, 3). Time taken: 5.42 seconds
+2024-09-14 22:19:38 - INFO - Saving the combined DataFrame to Parquet.
+2024-09-14 22:19:53 - INFO - Data saved to Parquet. Time taken: 14.80 seconds
+2024-09-14 22:19:53 - INFO - Pipeline completed successfully in 34.80 seconds.
