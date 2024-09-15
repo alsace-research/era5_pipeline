@@ -12,3 +12,4 @@ dependencies:
   - matplotlib
   - gcsfs
   - h3-py
+  - pytest

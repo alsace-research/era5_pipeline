@@ -28,7 +28,6 @@
   <p align="center">
     An method to turn ERA5 netCDF4 into Uber H3 hexagons!
     <br />
-    <a href="https://github.com/othneildrew/Best-README-Template"><strong>Explore the docs »</strong></a>
     <br />
     <br />
   </p>
@@ -49,8 +48,9 @@
     <li>
       <a href="#getting-started">Getting Started</a>
       <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
         <li><a href="#installation">Installation</a></li>
+        <li><a href="#the-data">The Data</a></li>
+        <li><a href="#the-tooling">The Tooling</a></li>
       </ul>
     </li>
     <li><a href="#workflow">Workflow</a></li>
@@ -113,19 +113,24 @@ _Below is an example of how you can instruct your audience on installing and set
 ## The Data
 
 1. The `total_precipitation` data comes in NetCDF4 format, which is not an optimized or compressed file format.  
-2. The data comes at a global scale and a resolution of 80km x 80km pixel grids
-3. The H3 resolution is of user choice, but I chose to use reolution 8, which 
+
+
+2. [*"Data has been regridded to a regular lat-lon grid of 0.25 degrees for the reanalysis and 0.5 degrees for the uncertainty estimate (0.5 and 1 degree respectively for ocean waves"*](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-single-levels?tab=overview) - copernicus.eu.
+
+
+3. Each precip grid pixel is ~28km x 28km (772 km2), we want to choose an H3 resolution to match.  H3 resolution `4` has an area of 1,770 km2.  i.e. ~2 precip grids fall inside a single H3.
 
 
 <!-- USAGE EXAMPLES -->
 ## The Tooling
 
-There are a few approaches to processing this type of data.  I started with the building the process locally on an M1 Mac.  For this approach, I chose to use `python`, `numpy`, `Dask`, `Xarray`, `gcsfs`, and `H3`.  
+There are a few approaches to processing this type of data.  I started with the building the process locally on an M1 Mac.  For this approach, I chose to use `python`, `numpy`, `Dask-distributed`, `xarray`, `gcsfs`, and `H3`.  
+
+I chose this stack because the code for a local workflow to a Cloud-optimized solution does not have a lot of variance aside from **configuring the Dask client**.
 
 Some other approaches I considered, due to familiarity:
-1. Databricks `Spark`: `spark-xarray`, `Mosaic` (native Databricks library for large-scale H3 processing - I've met the developers, the tools have been tested). [Link to Databricks Mosaic.](https://github.com/databrickslabs/mosaic)
-2. Python: `Dask Distributed`, `Xarray`
-3. Alternatives: `Coiled` (managed Dask clusters) via Cloud
+1. Databricks `Spark`: `spark-xarray`, `Mosaic` (native Databricks library for large-scale H3 processing). [Link to Databricks Mosaic.](https://github.com/databrickslabs/mosaic)
+2. Alternatives: `Coiled` (managed Dask clusters) + whatever flavor Cloud vendor
 
 
 **Local**
@@ -133,7 +138,7 @@ Some other approaches I considered, due to familiarity:
 The Dask and Xarray stack has many similarities between a local cluster, distributed cluster, or a HPC cluster.  The difference lies in the configuration of the workflow.
 
 **Distributed in Cloud**
-The process will run Python code which can be distributed and scaled across many memory-optimized machines in the cloud.
+The process will run Python code which can be distributed and scaled across many memory-optimized (ARM is a good choice) machines in the cloud.
 
 The code will run the same in the cloud, just ensure the configuration is set for the cloud.
 
@@ -151,24 +156,23 @@ One can access the Dask dashboard at it's fixed location here: `http://127.0.0.1
 
 1. Read in netCDF4 files from Google Cloud Storage
 2. Load files in parallel using Dask
-3. Chunk the data in Xarray to use 840MB to optimize memory in the read
+3. Chunk the data in Xarray to ***{time: 1, lat: 721, long: 1440}***
 4. Validate the Task Graph is not too large (this is where the chunk size is important)
 5. Select the Data Range needed, ultimately we want to process a full year `2022` of precipitation data
 6. Convert the netCDF4 into Uber H3 Hexagons in parallel
+    - Each grid pixel has a cooresponding latitude, longitude, value
+    - Sort by latitude, longitude before we process (spatial optimization)
+    - Vectorize `np.vectorize(h3_numpy.geo_to_h3)`
+    - 
 7. Aggregate each grid pixel to an single H3 index and take the mean value 
+    - Each grid pixel is ~28km x 28km (772 km2), we want to choose an H3 resolution to match.  
+    - H3 resolution `4` has an area of 1,770 km2.  
+    - i.e. ~2 precip grids fall inside a single H3.
 8. End with the h3_index, timestamp (hourly), precip_value (in mm), and resolution.
-9. Export to parquet
+9. Export to parquet w/ h3_index, timestamp as index
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-_For more examples, please refer to the [Documentation](https://example.com)_
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
 
 
 <!-- LICENSE -->

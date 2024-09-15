@@ -4,11 +4,9 @@ import numpy as np
 import tempfile
 import netCDF4 as nc
 from dask.distributed import Client
-
+import xarray as xr
+import gcsfs
 import h3.api.numpy_int as h3_numpy  # Use the numpy_int API for vectorized operations
-
-import h3.api.basic_str as h3_numpy  # Change to basic_str to handle scalar inputs
-import numpy as np
 
 def process_time_slice_futures(lat, lon, precipitation_data, timestamp, resolution=8, threshold=0.0001):
     """Process a single time slice using a vectorized H3 operation and precipitation threshold."""
@@ -27,65 +25,14 @@ def process_time_slice_futures(lat, lon, precipitation_data, timestamp, resoluti
     h3_converter = np.vectorize(h3_numpy.geo_to_h3)
     h3_indices = h3_converter(lat_valid, lon_valid, resolution)
 
-    # Ensure timestamp retains the full datetime (including hours and minutes)
+    # Create a DataFrame with H3 indices, precipitation, and timestamp
     hex_data = pd.DataFrame({
         'h3_index': h3_indices,
         'precipitation': precipitation_valid,
-        'timestamp': timestamp  # Ensure this is a full datetime, not just the date
+        'timestamp': timestamp
     })
 
     return hex_data
-
-
-
-
-import pandas as pd
-
-def convert_timestamps_to_pandas(df):
-    """Convert cftime.DatetimeGregorian to pandas.Timestamp."""
-    if 'timestamp' in df.columns:
-        # Convert cftime.DatetimeGregorian to pandas.Timestamp
-        df['timestamp'] = df['timestamp'].apply(lambda x: pd.Timestamp(x.isoformat()))
-    return df
-
-
-
-# def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8):
-#     """Download and process the precipitation data for a specific file from GCS."""
-#     try:
-#         with tempfile.NamedTemporaryFile(delete=True) as tmp_file:
-#             print(f"Downloading file from: {file_path}")
-#             fs.get(file_path, tmp_file.name)
-#             ds = nc.Dataset(tmp_file.name)
-
-#             # Get latitude, longitude, and time data
-#             lat = ds.variables['latitude'][:]
-#             lon = ds.variables['longitude'][:]
-#             time_var = ds.variables['time']
-#             time_units = time_var.units
-#             time_data = nc.num2date(time_var[:], units=time_units)
-
-#             # Process each time slice using futures
-#             futures = []
-#             for t_idx, timestamp in enumerate(time_data):
-#                 precipitation_data = ds.variables['tp'][t_idx, :, :]
-#                 future = client.submit(process_time_slice_futures, lat, lon, precipitation_data, timestamp, resolution=resolution, threshold=threshold)
-#                 futures.append(future)
-
-#             # Gather results
-#             results = client.gather(futures)
-#             final_df = pd.concat(results)
-#             return final_df
-
-#     except Exception as e:
-#         print(f"Error processing file {file_path}: {e}")
-#         return pd.DataFrame()
-
-import xarray as xr
-import gcsfs
-import pandas as pd
-from dask.distributed import Client
-import tempfile
 
 def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8):
     """Download and process the precipitation data for a specific file from GCS with chunking."""
@@ -95,7 +42,7 @@ def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8)
             fs.get(file_path, tmp_file.name)
 
             # Open the file with Xarray and apply chunking
-            ds = xr.open_dataset(tmp_file.name, chunks={'time': 10, 'latitude': 700, 'longitude': 1700})
+            ds = xr.open_dataset(tmp_file.name, chunks={'time': 100, 'latitude': 721, 'longitude': 1440})
 
             # Extract latitude, longitude, and time data
             lat = ds['latitude'].values
@@ -113,7 +60,7 @@ def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8)
                     process_time_slice_futures,
                     lat,
                     lon,
-                    precipitation_data.values,  # Convert to NumPy array for processing
+                    precipitation_data.values,
                     timestamp,
                     resolution=resolution,
                     threshold=threshold
@@ -129,16 +76,51 @@ def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8)
         print(f"Error processing file {file_path}: {e}")
         return pd.DataFrame()
 
+def convert_timestamps_to_pandas(df):
+    """Convert cftime.DatetimeGregorian to pandas.Timestamp."""
+    if 'timestamp' in df.columns:
+        df['timestamp'] = df['timestamp'].apply(lambda x: pd.Timestamp(x.isoformat()))
+    return df
 
 def save_to_parquet(df, output_path):
-    """Save the DataFrame to Parquet, optimized for querying by h3_index and timestamp."""
-    # Convert timestamps and set index
+    """Save the DataFrame to Parquet, partitioned by week, with h3_index and timestamp as the index."""
+    # Convert timestamps to pandas and add a 'week' column
     df = convert_timestamps_to_pandas(df)
+    df['week'] = df['timestamp'].dt.isocalendar().week
+
+    # Set index with h3_index and timestamp
     df.set_index(['h3_index', 'timestamp'], inplace=True)
 
     # Sort the data for better read performance
     df.sort_values(['h3_index', 'timestamp'], inplace=True)
 
-    # Save the DataFrame to a single Parquet file with compression
-    df.to_parquet(output_path, compression='snappy')
+    # Ensure the output path is treated as a directory
+    output_dir = output_path if output_path.endswith('/') else output_path + '/'
+
+    # Save the DataFrame to a Parquet file partitioned by 'week'
+    df.to_parquet(output_dir, partition_cols=['week'], compression='snappy')
+    print(f"Saved DataFrame to {output_dir}")
+
+def filter_by_date_range(df, start_date, end_date):
+    """Filter the DataFrame to include only data within the specified date range."""
+    if 'timestamp' not in df.columns:
+        raise KeyError("'timestamp' column not found in DataFrame.")
+    return df[(df['timestamp'] >= pd.Timestamp(start_date)) & (df['timestamp'] <= pd.Timestamp(end_date))]
+
+def process_and_save_by_period(df, output_path, start_date, period_days=4):
+    """Process the DataFrame and save in intervals of `period_days`."""
+    # Convert timestamps to pandas
+    df = convert_timestamps_to_pandas(df)
+
+    # Calculate the period based on `period_days`
+    df['period'] = ((df['timestamp'] - pd.Timestamp(start_date)).dt.days // period_days) + 1
+
+    # Set the index with h3_index and timestamp
+    df.set_index(['h3_index', 'timestamp'], inplace=True)
+
+    # Sort the data for better read performance
+    df.sort_values(['h3_index', 'timestamp'], inplace=True)
+
+    # Save the DataFrame partitioned by 'period'
+    df.to_parquet(output_path, partition_cols=['period'], compression='snappy')
     print(f"Saved DataFrame to {output_path}")
