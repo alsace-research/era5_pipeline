@@ -42,18 +42,18 @@
     <li>
       <a href="#about-the-project">About The Project</a>
       <ul>
-        <li><a href="#built-with">Built With</a></li>
       </ul>
     </li>
     <li>
-      <a href="#getting-started">Getting Started</a>
+      <a href="#the-replication">The Replication</a>
       <ul>
         <li><a href="#installation">Installation</a></li>
-        <li><a href="#the-data">The Data</a></li>
-        <li><a href="#the-tooling">The Tooling</a></li>
+        <li><a href="#the-configuration">The Configuration</a></li>
       </ul>
     </li>
-    <li><a href="#workflow">Workflow</a></li>
+    <li><a href="#the-data">The Data</a></li>  
+    <li><a href="#the-approach">The Approach</a></li>  
+    <li><a href="#the-workflow">The Workflow</a></li>
   </ol>
 </details>
 
@@ -65,24 +65,18 @@
 
 Here you'll find an common Earth Observation (EO) industry workflow to pull Satellite derived atmospheric data from netCDF4 format to Uber H3 format in parquet.  
 
-The data comes from [Google Analysis-Ready & Cloud Optimized (ARCO) ERA5](https://console.cloud.google.com/storage/browser/gcp-public-data-arco-era5/raw/date-variable-single_level/2022/01/01/total_precipitation;tab=objects?pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22))&prefix=&forceOnObjectsSortingFiltering=false)
-
-
-representing hourly precipitation data for the globe for ERA5 from the the *European Centre for Medium-Range Weather Forecasts (ECMWF)*.
-
-Here's why:
+Here's the utility of H3:
 * **H3** offers an convenient spatial index to better combine data of multiple spatial formats into a single format.
 * **H3** provides an simple way to store geospatial data without the storage overhead.
 
-
-I appreciate you taking the time to look over this repo!
+I appreciate your attention and getting an opportunity to share my thought process for tackling the above process.  
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
 <!-- GETTING STARTED -->
-## Getting Started
+## The Replication
 
 First, we'll need to create an environment that allows us to run EO data using Python.
 
@@ -100,11 +94,46 @@ _Below is an example of how you can instruct your audience on installing and set
    conda env create -f environment.yml        
    ```
 
-4. Change git remote url to avoid accidental pushes to base project
+   This will create a conda environment called 'xarray'.  This library stack often has many interdependencies, so say a thanks to the conda-forge community to handling this overhead.  I chose `conda` because it is the best long term way to maintain these libraries and ensuring continued operations.
+
+
+
+3. Go to the config.yaml file in the config folder
    ```sh
-   git remote set-url origin alsace-research/era5_pipeline
-   git remote -v # confirm the changes
+    data:
+      storage_path: "gs://gcp-public-data-arco-era5/raw"
+      output_path: "./data/processed/"
+      threshold: 0.0001  # Threshold for filtering precipitation values
+      resolution: 4       # H3 resolution
+
+    dask:
+      scheduler: "distributed"
+      num_workers: 4
+      memory_limit: "4GB"  # Memory limit for Dask workers
+      local_directory: "/tmp/dask-worker-space"
+      dashboard_port: 8787 # Fixed port for Dash dashboard
+
+    processing:
+      start_year: 2022
+      end_year: 2022
+      start_date: "2022-01-01"
+      end_date: "2022-01-01"  # Default set to one day for testing
+
    ```
+
+
+  I have this set to run  a single day but it will run an entire year.  Given that this was developed on an local environment, it will process files in batches ultimately producing parquet partitioned by a period of the users choosing.  It's currently set to do spurts of 4 days.
+
+4. Once the config is set to the setting of your choice, run the pipeline
+   ```sh
+   python run_pipeline.py       
+   ```
+
+### The Configuration
+
+
+I've provided an configuration file for this workflow.  I was unsure what the expectation was for the assessment, so I attempted to provide an cofiguration that gives the user the ability to select their own compute setting: Local, Cloud, or HPC.
+
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -112,21 +141,25 @@ _Below is an example of how you can instruct your audience on installing and set
 <!-- USAGE EXAMPLES -->
 ## The Data
 
-1. The `total_precipitation` data comes in NetCDF4 format, which is not an optimized or compressed file format.  
+1. The `total_precipitation` data comes in NetCDF4 format, which is not an optimized or compressed file format.  The precipitation comes in meters.
 
 
-2. [*"Data has been regridded to a regular lat-lon grid of 0.25 degrees for the reanalysis and 0.5 degrees for the uncertainty estimate (0.5 and 1 degree respectively for ocean waves"*](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-single-levels?tab=overview) - copernicus.eu.
+2. The data comes from [Google Analysis-Ready & Cloud Optimized (ARCO) ERA5](https://console.cloud.google.com/storage/browser/gcp-public-data-arco-era5/raw/date-variable-single_level/2022/01/01/total_precipitation;tab=objects?pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22))&prefix=&forceOnObjectsSortingFiltering=false) representing hourly precipitation data for the globe for ERA5 from the the *European Centre for Medium-Range Weather Forecasts (ECMWF)*.
 
 
 3. Each precip grid pixel is ~28km x 28km (772 km2), we want to choose an H3 resolution to match.  H3 resolution `4` has an area of 1,770 km2.  i.e. ~2 precip grids fall inside a single H3.
 
+4. The most optimized way to read this data is to leverage Lazy Loading in `Dask-distributed`.  This workflow instead reads in *chunks* of files at a time, processes them, and writes the output.
+
+5. For the year of 2022, there are files for each hour, and each are 52MB in size (give or take).  There are 23 files for each day, ~8,600 for a year.  For loading in a distributed way, we tend to aim for loading chunks to 100MB to 1GB to keep memory efficient.  
+
 
 <!-- USAGE EXAMPLES -->
-## The Tooling
+## The Approach
 
 There are a few approaches to processing this type of data.  I started with the building the process locally on an M1 Mac.  For this approach, I chose to use `python`, `numpy`, `Dask-distributed`, `xarray`, `gcsfs`, and `H3`.  
 
-I chose this stack because the code for a local workflow to a Cloud-optimized solution does not have a lot of variance aside from **configuring the Dask client**.
+**I chose this approach because the code for a local workflow to a Cloud-optimized solution does not have a lot of variance aside from configuring the Dask client**.  The assessment was written quite broad, so I did my best to build an local and cloud optimized version.
 
 Some other approaches I considered, due to familiarity:
 1. Databricks `Spark`: `spark-xarray`, `Mosaic` (native Databricks library for large-scale H3 processing). [Link to Databricks Mosaic.](https://github.com/databrickslabs/mosaic)
@@ -142,38 +175,57 @@ The process will run Python code which can be distributed and scaled across many
 
 The code will run the same in the cloud, just ensure the configuration is set for the cloud.
 
-**HPC** High Perforamance Computing centers are often used for EO data and must be used appropriately.  The configuration shows an attempt an building an scheduler for this approach.
+**HPC** High Perforamance Computing centers are often used for EO data and must be used appropriately.  The configuration shows an attempt an building an scheduler for this approach.  I evaluated added this to the config but opted out due to time concerns.
+
+
 
 <!-- USAGE EXAMPLES -->
-## Configuration
-
-I've provided an configuration file for this workflow.  I was unsure what the expectation was for the assessment, so I attempted to provide an cofiguration that gives the user the ability to select their own compute setting: Local, Cloud, or HPC.
-
-<!-- USAGE EXAMPLES -->
-## Workflow
+## The Workflow
 
 One can access the Dask dashboard at it's fixed location here: `http://127.0.0.1:8787/status`
 
 1. Read in netCDF4 files from Google Cloud Storage
 2. Load files in parallel using Dask
 3. Chunk the data in Xarray to ***{time: 1, lat: 721, long: 1440}***
-4. Validate the Task Graph is not too large (this is where the chunk size is important)
-5. Select the Data Range needed, ultimately we want to process a full year `2022` of precipitation data
+    - `time: 1` loads 24 hourly files into Xarray
+    - `lat: 721` each file contains 721 grids up & down
+    - `long: 1440` each files contain 1440 grids left & right
+
+4. Validate the Task Graph is not too large (this is where the chunk size is important) *I did not get time to build and visualize this*.
+5. Select the Data Range needed, ultimately we want to process a full year `2022` of precipitation data, but feel free to run on a day or week to test.
 6. Convert the netCDF4 into Uber H3 Hexagons in parallel
     - Each grid pixel has a cooresponding latitude, longitude, value
+    - Convert precipitation from `meters` to `milimeters`
     - Sort by latitude, longitude before we process (spatial optimization)
     - Vectorize `np.vectorize(h3_numpy.geo_to_h3)`
-    - 
 7. Aggregate each grid pixel to an single H3 index and take the mean value 
     - Each grid pixel is ~28km x 28km (772 km2), we want to choose an H3 resolution to match.  
     - H3 resolution `4` has an area of 1,770 km2.  
     - i.e. ~2 precip grids fall inside a single H3.
+    - Set index on `h3_index`, `timestamp`.
 8. End with the h3_index, timestamp (hourly), precip_value (in mm), and resolution.
 9. Export to parquet w/ h3_index, timestamp as index
+10. The parquet are optimized to be read by spatial query or by a time-series query.
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+
+## The Remaining Bits
+
+While time is finite, there are always things left undone.  Here includes a list of items I'd hope to better evolve.
+
+1. Better optimization from GCS to read into Dask & Xarray (lazy loading at scale).
+1. Flesh out more robust testing - simple tests were chosen.
+2. Full adaption of configuration for Cloud usage / HPC
+3. General clean-up of docs used to communicate to the masses (or a sall team)
+
+
+## The Appreciation
+
+Again, a thank you for your time and attention.  A simple thank you for asking an relevant task for the assessment.  
+
+It's a much more comfortable experience and much more efficient use of everyone's time.  It's enabled a better medium for sharing my experience and approach.
 
 <!-- LICENSE -->
 ## License
