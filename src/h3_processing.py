@@ -1,10 +1,25 @@
 import pandas as pd
 import h3
 import numpy as np
-import tempfile  # Missing import
+import tempfile
+import os
 from dask import delayed
 import xarray as xr
+import gcsfs  # Required to handle files from GCS
 import h3.api.numpy_int as h3_numpy  # Vectorized H3 using numpy_int API
+import shutil  # For cleaning up the temporary directory
+from datetime import datetime
+
+def list_gcs_files(gcs_path):
+    """List all files that match a pattern in Google Cloud Storage."""
+    fs = gcsfs.GCSFileSystem()
+    if gcs_path.startswith("gs://"):
+        file_list = fs.glob(gcs_path)
+        if not file_list:
+            raise ValueError(f"No files found for pattern {gcs_path}")
+        return file_list
+    else:
+        raise ValueError(f"Path {gcs_path} is not a valid GCS path")
 
 def process_time_slice_futures(lat, lon, precipitation_data, timestamp, resolution=4, threshold=0.0001):
     """Process a single time slice using a vectorized H3 operation and precipitation threshold."""
@@ -23,55 +38,90 @@ def process_time_slice_futures(lat, lon, precipitation_data, timestamp, resoluti
     h3_converter = np.vectorize(h3_numpy.geo_to_h3)
     h3_indices = h3_converter(lat_valid, lon_valid, resolution)
 
-    # Create a DataFrame with H3 indices, precipitation (in mm), and timestamp
+    # Convert the timestamp to full datetime including hour
+    timestamp_full = pd.Timestamp(timestamp).isoformat()
+
+    # Create a DataFrame with H3 indices, precipitation, and timestamp (including hour)
     hex_data = pd.DataFrame({
         'h3_index': h3_indices,
         'precipitation': precipitation_valid,
-        'timestamp': timestamp
+        'timestamp': timestamp_full  # This now includes both date and hour
     })
 
     return hex_data
 
-def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8):
-    """Download and process the precipitation data for a specific file from GCS with chunking."""
+
+def load_and_process_day_of_files(file_pattern, client, chunk_size, output_dir, threshold=0.0001, resolution=8):
+    """Load and process a day of hourly files from GCS by downloading them to temporary files."""
+    temp_dir = tempfile.mkdtemp()  # Create a temporary directory to store downloaded files
     try:
-        with tempfile.NamedTemporaryFile(delete=True) as tmp_file:
-            print(f"Downloading file from: {file_path}")
-            fs.get(file_path, tmp_file.name)
+        fs = gcsfs.GCSFileSystem()
+        file_list = list_gcs_files(file_pattern)
+        
+        if not file_list:
+            raise ValueError(f"No files found for pattern {file_pattern}")
 
-            # Open the file with Xarray and apply chunking
-            ds = xr.open_dataset(tmp_file.name, chunks={'time': 100, 'latitude': 721, 'longitude': 1440})
+        datasets = []
 
-            # Extract latitude, longitude, and time data
-            lat = ds['latitude'].values
-            lon = ds['longitude'].values
-            time_data = ds['time'].values
+        # Download each file to a temporary directory and then process it
+        for file in file_list:
+            temp_file_path = os.path.join(temp_dir, os.path.basename(file))
+            print(f"Downloading {file} to {temp_file_path}")
+            fs.get(file, temp_file_path)
+            
+            # Open the dataset from the temporary file using the netCDF4 engine
+            ds = xr.open_dataset(temp_file_path, engine='netcdf4', chunks=chunk_size)
+            datasets.append(ds)
 
-            # Prepare Dask tasks for each time slice
-            futures = []
-            for t_idx, timestamp in enumerate(time_data):
-                # Load the precipitation data chunk for this time slice
-                precipitation_data = ds['tp'].isel(time=t_idx).load()
+        # Combine all datasets along the time dimension
+        ds_combined = xr.concat(datasets, dim='time')
 
-                # Submit task for processing the time slice
-                future = delayed(process_time_slice_futures)(
-                    lat,
-                    lon,
-                    precipitation_data.values,
-                    timestamp,
-                    resolution=resolution,
-                    threshold=threshold
-                )
-                futures.append(future)
+        # Extract latitude, longitude, and time data
+        lat = ds_combined['latitude'].values
+        lon = ds_combined['longitude'].values
+        time_data = ds_combined['time'].values
 
-            # Compute Dask futures in parallel
-            results = client.compute(futures)
-            final_df = pd.concat(client.gather(results))
-            return final_df
+        # Prepare Dask tasks for each time slice
+        futures = []
+        for t_idx, timestamp in enumerate(time_data):
+            # Load the precipitation data chunk for this time slice
+            precipitation_data = ds_combined['tp'].isel(time=t_idx).load()
+
+            # Submit task for processing the time slice
+            future = delayed(process_time_slice_futures)(
+                lat,
+                lon,
+                precipitation_data.values,
+                timestamp,
+                resolution=resolution,
+                threshold=threshold
+            )
+            futures.append(future)
+
+        # Compute Dask futures in parallel
+        results = client.compute(futures)
+        final_df = pd.concat(client.gather(results))
+
+        # Get the date from the first timestamp in the processed data
+        date_str = pd.to_datetime(time_data[0]).strftime('%Y-%m-%d')
+
+        # Output file path based on date
+        output_file = os.path.join(output_dir, f"precipitation_{date_str}.parquet")
+        
+        # Save DataFrame to parquet
+        final_df.to_parquet(output_file, compression='snappy')
+        print(f"Saved data to {output_file}")
+
+        return final_df
 
     except Exception as e:
-        print(f"Error processing file {file_path}: {e}")
+        print(f"Error processing files matching pattern {file_pattern}: {e}")
         return pd.DataFrame()
+
+    finally:
+        # Cleanup the temporary directory after processing is done
+        shutil.rmtree(temp_dir)
+        print(f"Cleaned up temporary directory: {temp_dir}")
 
 
 def convert_timestamps_to_pandas(df):

@@ -1,18 +1,24 @@
 data:
   storage_path: "gs://gcp-public-data-arco-era5/raw"
-  output_path: "./data/processed/"
-  threshold: 0.0001  # Threshold for filtering precipitation values
-  resolution: 4       # H3 resolution
+  file_pattern: "date-variable-single_level/{year}/{month:02d}/{day:02d}/total_precipitation/*.nc"
+  output_dir: "./data/processed/"  # Directory to save the parquet files named by date
+  threshold: 0.0001  # Precipitation threshold (in meters, to be converted to mm)
+  resolution: 4  # H3 resolution for hexagons
+
 
 dask:
   scheduler: "distributed"
   num_workers: 4
   memory_limit: "4GB"  # Memory limit for Dask workers
   local_directory: "/tmp/dask-worker-space"
-  dashboard_port: 8787 # Fixed port for Dash dashboard
+  dashboard_port: 8787  # Fixed port for Dask dashboard
 
 processing:
   start_year: 2022
   end_year: 2022
   start_date: "2022-01-01"
-  end_date: "2022-01-01"  # Default set to one day for testing
+  end_date: "2022-01-07"  # Default set to one day for testing
+  period_days: 1  # Number of days to process in each run (can be set to a larger number if needed)
+  chunk_size:  # Specify chunk sizes for Dask processing
+    latitude: 200  # Chunk size for latitude
+    longitude: 200  # Chunk size for longitude
