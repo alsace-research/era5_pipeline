@@ -1,24 +1,4 @@
-<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
 <a id="readme-top"></a>
-<!--
-*** Thanks for checking out the Best-README-Template. If you have a suggestion
-*** that would make this better, please fork the repo and create a pull request
-*** or simply open an issue with the tag "enhancement".
-*** Don't forget to give the project a star!
-*** Thanks again! Now go create something AMAZING! :D
--->
-
-
-
-<!-- PROJECT SHIELDS -->
-<!--
-*** I'm using markdown "reference style" links for readability.
-*** Reference links are enclosed in brackets [ ] instead of parentheses ( ).
-*** See the bottom of this document for the declaration of the reference variables
-*** for contributors-url, forks-url, etc. This is an optional, concise syntax you may use.
-*** https://www.markdownguide.org/basic-syntax/#reference-style-links
--->
-
 
 <!-- PROJECT LOGO -->
 <br />
@@ -27,8 +7,6 @@
 
   <p align="center">
     An method to turn ERA5 netCDF4 into Uber H3 hexagons!
-    <br />
-    <br />
     <br />
   </p>
 </div>
@@ -63,11 +41,12 @@
 ## About The Project
 
 
-Here you'll find an common Earth Observation (EO) industry workflow to pull Satellite derived atmospheric data from netCDF4 format to Uber H3 format in parquet.  
+Here you'll find an common Earth Observation (EO) industry workflow to pull satellite derived atmospheric data from netCDF4 format to Uber H3 format in parquet.  
 
 Here's the utility of H3:
 * **H3** offers an convenient spatial index to better combine data of multiple spatial formats into a single format.
 * **H3** provides an simple way to store geospatial data without the storage overhead.
+* **H3** stores an int hash (h3_index) instead of expensive geometries (Point, Line, Polygons).  It is quite effificient at storing geospatial data.  
 
 I appreciate your attention and getting an opportunity to share my thought process for tackling the above process.  
 
@@ -83,8 +62,6 @@ First, we'll need to create an environment that allows us to run EO data using P
 
 ### Installation
 
-_Below is an example of how you can instruct your audience on installing and setting up your app. This template doesn't rely on any external dependencies or services._
-
 1. Clone the repo
    ```sh
    git clone https://github.com/alsace_research/era5_pipeline.git
@@ -94,9 +71,10 @@ _Below is an example of how you can instruct your audience on installing and set
    conda env create -f environment.yml        
    ```
 
-   This will create a conda environment called 'xarray'.  This library stack often has many interdependencies, so say a thanks to the conda-forge community to handling this overhead.  I chose `conda` because it is the best long term way to maintain these libraries and ensuring continued operations.
+  This will create a conda environment called 'xarray'.  This library stack often has many interdependencies, so say a thanks to the conda-forge community to handling this overhead.  I chose `conda` because it is the best long term way to maintain these libraries and ensuring continued operations.
 
 
+<br>
 
 3. Go to the config.yaml file in the config folder
    ```sh
@@ -132,7 +110,7 @@ _Below is an example of how you can instruct your audience on installing and set
 ### The Configuration
 
 
-I've provided an configuration file for this workflow.  I was unsure what the expectation was for the assessment, so I attempted to provide an cofiguration that gives the user the ability to select their own compute setting: Local, Cloud, or HPC.
+I've provided an configuration file for this workflow.  I was unsure what the expectation was for the assessment, so I attempted to provide an cofiguration that gives the user the ability to select their own compute setting: Local or Cloud.
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -152,6 +130,8 @@ I've provided an configuration file for this workflow.  I was unsure what the ex
 4. The most optimized way to read this data is to leverage Lazy Loading in `Dask-distributed`.  This workflow instead reads in *chunks* of files at a time, processes them, and writes the output.
 
 5. For the year of 2022, there are files for each hour, and each are 52MB in size (give or take).  There are 23 files for each day, ~8,600 for a year.  For loading in a distributed way, we tend to aim for loading chunks to 100MB to 1GB to keep memory efficient.  
+
+6. One day of H3 hexagons amounts to ~3,636,140 records and ~64.5MB.  One year is estimated at 1,327,194,385 or ~1.3B records at the hourly time step.
 
 
 <!-- USAGE EXAMPLES -->
@@ -175,7 +155,7 @@ The process will run Python code which can be distributed and scaled across many
 
 The code will run the same in the cloud, just ensure the configuration is set for the cloud.
 
-**HPC** High Perforamance Computing centers are often used for EO data and must be used appropriately.  The configuration shows an attempt an building an scheduler for this approach.  I evaluated added this to the config but opted out due to time concerns.
+**HPC** High Performance Computing centers are often used for EO data and must be used appropriately.  The configuration shows an attempt an building an scheduler for this approach.  I evaluated added this to the config but opted out due to time concerns.
 
 
 

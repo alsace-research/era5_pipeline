@@ -1,14 +1,12 @@
 import pandas as pd
 import h3
 import numpy as np
-import tempfile
-import netCDF4 as nc
-from dask.distributed import Client
+import tempfile  # Missing import
+from dask import delayed
 import xarray as xr
-import gcsfs
-import h3.api.numpy_int as h3_numpy  # Use the numpy_int API for vectorized operations
+import h3.api.numpy_int as h3_numpy  # Vectorized H3 using numpy_int API
 
-def process_time_slice_futures(lat, lon, precipitation_data, timestamp, resolution=8, threshold=0.0001):
+def process_time_slice_futures(lat, lon, precipitation_data, timestamp, resolution=4, threshold=0.0001):
     """Process a single time slice using a vectorized H3 operation and precipitation threshold."""
     lat_flat = np.repeat(lat, len(lon))
     lon_flat = np.tile(lon, len(lat))
@@ -19,13 +17,13 @@ def process_time_slice_futures(lat, lon, precipitation_data, timestamp, resoluti
 
     lat_valid = lat_flat[valid_indices]
     lon_valid = lon_flat[valid_indices]
-    precipitation_valid = precipitation_flat[valid_indices]
+    precipitation_valid = precipitation_flat[valid_indices] * 1000  # Convert from meters to millimeters
 
     # Vectorized H3 conversion using numpy's vectorize
     h3_converter = np.vectorize(h3_numpy.geo_to_h3)
     h3_indices = h3_converter(lat_valid, lon_valid, resolution)
 
-    # Create a DataFrame with H3 indices, precipitation, and timestamp
+    # Create a DataFrame with H3 indices, precipitation (in mm), and timestamp
     hex_data = pd.DataFrame({
         'h3_index': h3_indices,
         'precipitation': precipitation_valid,
@@ -56,8 +54,7 @@ def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8)
                 precipitation_data = ds['tp'].isel(time=t_idx).load()
 
                 # Submit task for processing the time slice
-                future = client.submit(
-                    process_time_slice_futures,
+                future = delayed(process_time_slice_futures)(
                     lat,
                     lon,
                     precipitation_data.values,
@@ -67,14 +64,15 @@ def load_and_process_file(file_path, fs, client, threshold=0.0001, resolution=8)
                 )
                 futures.append(future)
 
-            # Gather results
-            results = client.gather(futures)
-            final_df = pd.concat(results)
+            # Compute Dask futures in parallel
+            results = client.compute(futures)
+            final_df = pd.concat(client.gather(results))
             return final_df
 
     except Exception as e:
         print(f"Error processing file {file_path}: {e}")
         return pd.DataFrame()
+
 
 def convert_timestamps_to_pandas(df):
     """Convert cftime.DatetimeGregorian to pandas.Timestamp."""

@@ -1,0 +1,8 @@
+2024-09-17 22:13:29 - INFO - Pipeline started.
+2024-09-17 22:13:29 - WARNING - No project ID could be determined. Consider running `gcloud config set project` or setting the GOOGLE_CLOUD_PROJECT environment variable
+2024-09-17 22:13:31 - INFO - Dask dashboard available at http://127.0.0.1:8787/status
+2024-09-17 22:13:31 - INFO - Processing period from 2022-01-01 00:00:00 to 2022-01-01 00:00:00
+2024-09-17 22:13:31 - INFO - Processing file: gs://gcp-public-data-arco-era5/raw/date-variable-single_level/2022/01/01/total_precipitation/surface.nc
+2024-09-17 22:13:36 - INFO - Finished processing file: gs://gcp-public-data-arco-era5/raw/date-variable-single_level/2022/01/01/total_precipitation/surface.nc with shape (3636140, 3)
+2024-09-17 22:13:49 - INFO - Finished processing period from 2022-01-01 00:00:00 to 2022-01-01 00:00:00. Time taken: 18.80 seconds
+2024-09-17 22:13:49 - INFO - Pipeline completed successfully in 20.19 seconds.
