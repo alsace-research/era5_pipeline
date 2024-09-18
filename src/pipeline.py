@@ -5,6 +5,7 @@ from dask.distributed import Client
 from src.h3_processing import load_and_process_day_of_files
 from src.utils import ensure_directory_exists
 import os
+import h3
 
 # Set up logging configuration
 logging.basicConfig(

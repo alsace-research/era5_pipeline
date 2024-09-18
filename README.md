@@ -74,43 +74,53 @@ First, we'll need to create an environment that allows us to run EO data using P
   This will create a conda environment called 'xarray'.  This library stack often has many interdependencies, so say a thanks to the conda-forge community to handling this overhead.  I chose `conda` because it is the best long term way to maintain these libraries and ensuring continued operations.
 
 
-<br>
 
 3. Go to the config.yaml file in the config folder
    ```sh
     data:
       storage_path: "gs://gcp-public-data-arco-era5/raw"
-      output_path: "./data/processed/"
-      threshold: 0.0001  # Threshold for filtering precipitation values
-      resolution: 4       # H3 resolution
+      file_pattern: "date-variable-single_level/{year}/{month:02d}/{day:02d}/total_precipitation/*.nc"
+      output_dir: "./data/processed/"  # Directory to save the parquet files named by date
+      threshold: 0.0001  # Precipitation threshold (in meters, to be converted to mm)
+      resolution: 4  # H3 resolution for hexagons
+
 
     dask:
       scheduler: "distributed"
       num_workers: 4
       memory_limit: "4GB"  # Memory limit for Dask workers
       local_directory: "/tmp/dask-worker-space"
-      dashboard_port: 8787 # Fixed port for Dash dashboard
+      dashboard_port: 8787  # Fixed port for Dask dashboard
 
     processing:
       start_year: 2022
       end_year: 2022
       start_date: "2022-01-01"
-      end_date: "2022-01-01"  # Default set to one day for testing
-
+      end_date: "2022-01-07"  # Default set to one day for testing
+      period_days: 1  # Number of days to process in each run (can be set to a larger number if needed)
+      chunk_size:  # Specify chunk sizes for Dask processing
+        latitude: 200  # Chunk size for latitude
+        longitude: 200  # Chunk size for longitude
    ```
 
 
-  I have this set to run  a single day but it will run an entire year.  Given that this was developed on an local environment, it will process files in batches ultimately producing parquet partitioned by a period of the users choosing.  It's currently set to do spurts of 4 days.
+  I have this set to run a single week, but it will run an entire year.  Given that this was developed on an local environment, it will process files in batches ultimately producing parquet partitioned by a day.
 
 4. Once the config is set to the setting of your choice, run the pipeline
-   ```sh
-   python run_pipeline.py       
-   ```
+  ```sh
+  python run_pipeline.py       
+  ```
+
+5. If you'd like to test.  Ensure the `xarray` environment is active
+  ```sh
+  pytest  
+  ```
+
 
 ### The Configuration
 
 
-I've provided an configuration file for this workflow.  I was unsure what the expectation was for the assessment, so I attempted to provide an cofiguration that gives the user the ability to select their own compute setting: Local or Cloud.
+I've provided an configuration file for this workflow.  I was unsure what the expectation was for the assessment, so I attempted to provide an cofiguration that gives the user the ability to select their own compute setting: Local or Cloud.  
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -148,7 +158,7 @@ Some other approaches I considered, due to familiarity:
 
 **Local**
 
-The Dask and Xarray stack has many similarities between a local cluster, distributed cluster, or a HPC cluster.  The difference lies in the configuration of the workflow.
+The Dask and Xarray stack has many similarities between a local cluster, distributed cluster, or a HPC cluster.  The difference lies in the configuration of the workflow.  Though, it is fast enough to run locally.
 
 **Distributed in Cloud**
 The process will run Python code which can be distributed and scaled across many memory-optimized (ARM is a good choice) machines in the cloud.
@@ -166,10 +176,7 @@ One can access the Dask dashboard at it's fixed location here: `http://127.0.0.1
 
 1. Read in netCDF4 files from Google Cloud Storage
 2. Load files in parallel using Dask
-3. Chunk the data in Xarray to ***{time: 1, lat: 721, long: 1440}***
-    - `time: 1` loads 24 hourly files into Xarray
-    - `lat: 721` each file contains 721 grids up & down
-    - `long: 1440` each files contain 1440 grids left & right
+3. Chunk the data in Xarray to ***{lat: 200, long: 200}***
 
 4. Validate the Task Graph is not too large (this is where the chunk size is important) *I did not get time to build and visualize this*.
 5. Select the Data Range needed, ultimately we want to process a full year `2022` of precipitation data, but feel free to run on a day or week to test.
@@ -183,7 +190,7 @@ One can access the Dask dashboard at it's fixed location here: `http://127.0.0.1
     - H3 resolution `4` has an area of 1,770 km2.  
     - i.e. ~2 precip grids fall inside a single H3.
     - Set index on `h3_index`, `timestamp`.
-8. End with the h3_index, timestamp (hourly), precip_value (in mm), and resolution.
+8. End with the h3_index, timestamp (hourly), precip_value (in mm).
 9. Export to parquet w/ h3_index, timestamp as index
 10. The parquet are optimized to be read by spatial query or by a time-series query.
 

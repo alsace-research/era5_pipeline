@@ -1,6 +1,7 @@
 import os
 import gcsfs
 import xarray as xr
+import h3
 
 import warnings
 
