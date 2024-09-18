@@ -147,7 +147,7 @@ I've provided an configuration file for this workflow.  I was unsure what the ex
 <!-- USAGE EXAMPLES -->
 ## The Approach
 
-There are a few approaches to processing this type of data.  I started with the building the process locally on an M1 Mac.  For this approach, I chose to use `python`, `numpy`, `Dask-distributed`, `xarray`, `gcsfs`, and `H3`.  
+There are a few approaches to processing this type of data.  I started with building the process locally on an M1 Mac.  For this approach, I chose to use `python`, `numpy`, `Dask-distributed`, `xarray`, `gcsfs`, and `H3`.  
 
 **I chose this approach because the code for a local workflow to a Cloud-optimized solution does not have a lot of variance aside from configuring the Dask client**.  The assessment was written quite broad, so I did my best to build an local and cloud optimized version.
 
