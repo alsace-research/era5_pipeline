@@ -10,20 +10,23 @@ def config():
     return {
         'data': {
             'output_path': './test_output',
-            'output_dir': './test_output/parquet_files',  # Add output_dir here
+            'output_dir': './test_output/parquet_files',
             'storage_path': 'gs://test_bucket',
-            'file_pattern': '{year}/{month:02d}/{day:02d}/total_precipitation/*.nc'  # Add the file_pattern key
+            'file_pattern': '{year}/{month:02d}/{day:02d}/total_precipitation/*.nc',
+            'threshold': 0.0001,  # Add the threshold key
+            'resolution': 4       # Add resolution key as well
         },
         'processing': {
             'start_date': '2022-01-01',
             'end_date': '2022-01-04',
-            'period_days': 4
+            'period_days': 4,
+            'chunk_size': 1000
         },
         'dask': {
             'num_workers': 2,
             'memory_limit': '4GB',
             'local_directory': './test_dask_space',
-            'dashboard_port': 8787  # Add the dashboard_port key here
+            'dashboard_port': 8787
         }
     }
 
