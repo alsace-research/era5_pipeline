@@ -205,7 +205,7 @@ While time is finite, there are always things left undone.  Here includes a list
 1. Better optimization from GCS to read into Dask & Xarray (lazy loading at scale).
 1. Flesh out more robust testing - simple tests were chosen.
 2. Full adaption of configuration for Cloud usage / HPC
-3. General clean-up of docs used to communicate to the masses (or a sall team)
+3. General clean-up of docs used to communicate to the masses (or a small team)
 
 
 ## The Appreciation
