@@ -48,8 +48,6 @@ Here's the utility of H3:
 * **H3** provides an simple way to store geospatial data without the storage overhead.
 * **H3** stores an int hash (h3_index) instead of expensive geometries (Point, Line, Polygons).  It is quite effificient at storing geospatial data.  
 
-I appreciate your attention and getting an opportunity to share my thought process for tackling the above process.  
-
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -207,12 +205,6 @@ While time is finite, there are always things left undone.  Here includes a list
 2. Full adaption of configuration for Cloud usage / HPC
 3. General clean-up of docs used to communicate to the masses (or a small team)
 
-
-## The Appreciation
-
-Again, a thank you for your time and attention.  A simple thank you for asking an relevant task for the assessment.  
-
-It's a much more comfortable experience and much more efficient use of everyone's time.  It's enabled a better medium for sharing my experience and approach.
 
 <!-- LICENSE -->
 ## License
